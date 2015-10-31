@@ -1,6 +1,6 @@
 #!/bin/bash
 #-Metadata----------------------------------------------------#
-#  Filename: raspi-config.sh             (Update: 2015-10-26) #
+#  Filename: raspi-config.sh             (Update: 2015-10-30) #
 #-Info--------------------------------------------------------#
 #  Raspberry Pi Kali dropbox automated script                 #
 #-Author(s)---------------------------------------------------#
@@ -141,18 +141,12 @@ echo -e "\n ${GREEN}[+]${RESET} Changing ${GREEN}Raspberry Pi${RESET} to text-ba
 #systemctl get-default
 #systemctl set-default graphical.target
 systemctl set-default multi-user.target
-fi
-
 
 ##### Update Raspberry Pi
 echo -e "\n ${GREEN}[+]${RESET} Updating ${GREEN}Raspberry Pi${RESET}"
 apt-get update && apt-get install kali-linux-full && apt-get -y upgrade && apt-get -y dist-upgrade
 apt-get install -y screen tmux hostapd dnsmasq wireless-tools iw wvdial resolvconf bridge-utils ebtables iptables arptables isc-dhcp-server
-
-
-##### Backup default config files
-cp /etc/hostapd/hostapd.conf /etc/hostapd/hostapd.conf.orig
-cp /etc/dnsmasq.conf /etc/dnsmasq.conf.orig
+fi
 
 
 ##### Wifi AP Auto Run
@@ -163,6 +157,10 @@ if [ "${ConfigWifi}" != "false" ]; then
 	read BSSID
 	echo -e "\n ${YELLOW}[i]${RESET} Enter the passphrase:"
 	read PASSPH
+
+##### Backup default config files
+cp /etc/hostapd/hostapd.conf /etc/hostapd/hostapd.conf.orig
+cp /etc/dnsmasq.conf /etc/dnsmasq.conf.orig
 
 #Config AP
 cat <<EOF > "/etc/hostapd/hostapd.conf"
