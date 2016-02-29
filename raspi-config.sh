@@ -99,7 +99,7 @@ done
 
 #-Start----------------------------------------------------------------#
 
-echo -e "\n ${BLUE}[USAGE:]${RESET} raspi-config.sh ${BLUE}--base --tft --ssh --wifi ${RESET}"
+echo -e "\n ${BLUE}[USAGE:]${RESET} raspi-config.sh ${BLUE}--base --tft --wifi --ssh --wifi --stealth --reset ${RESET}"
 
 ##### Install TFT patched kernel
 if [ "${TFTinstall}" != "false" ]; then
@@ -173,6 +173,9 @@ git clone https://github.com/c0d3z3r0/impacket.git
 cd impacket/ && python setup.py install
 cd ~
 
+##### Configuring Managed Network Interfaces
+sed -i 's/managed=false/managed=true/g' /etc/NetworkManager/NetworkManager.conf
+for i in `seq 0 2`; do ifconfig eth$i up && dhclient eth$i; done
 
 fi
 
@@ -229,21 +232,14 @@ EOF
 ##### Make Executable
 chmod 755 /root/config_ap.sh
 
-cat <<EOF > "/etc/rc.local"
-#!/bin/sh -e
-#
-# rc.local
-#
-# This script is executed at the end of each multiuser runlevel.
-# Make sure that the script will "exit 0" on success or any other
-# value on error.
-#
-# In order to enable or disable this script just change the execution
-# bits.
-#
-# By default this script does nothing.
+sed -i 's/exit 0//g' /etc/rc.local
+cat <<EOF >> "/etc/rc.local"
 
-sh /root/config_ap.sh
+sleep 30
+for i in `seq 0 2`; do ifconfig eth$i up && dhclient eth$i; done
+ifconfig wwan0 up && dhclient wwan0
+
+sh /root/config_ap.sh &
 exit 0
 
 EOF
@@ -666,31 +662,23 @@ chmod 755 /root/dnsssh.sh
 chmod 755 /root/icmpssh.sh
 
 
-# cat <<EOF > "/etc/rc.local"
-# #!/bin/sh -e
-# #
-# # rc.local
-# #
-# # This script is executed at the end of each multiuser runlevel.
-# # Make sure that the script will "exit 0" on success or any other
-# # value on error.
-# #
-# # In order to enable or disable this script just change the execution
-# # bits.
-# #
-# # By default this script does nothing.
-# 
-# sleep 30
+sed -i 's/exit 0//g' /etc/rc.local
+cat <<EOF >> "/etc/rc.local"
+
+sleep 30
+for i in `seq 0 2`; do ifconfig eth$i up && dhclient eth$i; done
+ifconfig wwan0 up && dhclient wwan0
+
 # 
 # sh /root/revssh.sh &
 # sh /root/httpssh.sh &
 # sh /root/httpsssh.sh &
 # sh /root/dnsssh.sh &
 # sh /root/icmpssh.sh &
-# 
-# exit 0
-# 
-# EOF
+
+exit 0
+
+EOF
 
 # ln -s /root/revssh.sh /etc/rc2.d/S99revssh.sh
 # ln -s /root/httpssh.sh /etc/rc2.d/S99httpssh.sh
@@ -718,7 +706,7 @@ EOF
 fi
 
 
-##### Reset Raspberry Pi
+##### Stealth Raspberry Pi
 if [ "${Stealth}" != "false" ]; then
    echo -e "\n ${GREEN}[+]${RESET} Creating stealth mode"
 # sudo iptables -F
@@ -737,21 +725,14 @@ if [ "${Stealth}" != "false" ]; then
 
 wget https://raw.githubusercontent.com/jkadijk/BitM/master/autosniff.py -O /root/autosniff.py
 
-cat <<EOF > "/etc/rc.local"
-#!/bin/sh -e
-#
-# rc.local
-#
-# This script is executed at the end of each multiuser runlevel.
-# Make sure that the script will "exit 0" on success or any other
-# value on error.
-#
-# In order to enable or disable this script just change the execution
-# bits.
-#
-# By default this script does nothing.
+sed -i 's/for i in `seq 0 2`; do ifconfig eth$i up && dhclient eth$i; done//g' /etc/rc.local
+sed -i 's/exit 0//g' /etc/rc.local
 
-sh /root/config_ap.sh
+cat <<EOF >> "/etc/rc.local"
+
+sh /root/config_ap.sh &
+ifconfig eth0 up && dhclient eth0
+ifconfig wwan0 up && dhclient wwan0
 cd /root/ && python /root/autosniff.py &
 /etc/init.d/ssh start &
 
@@ -762,9 +743,45 @@ EOF
 fi
 
 
+
+##### Configuring 3G/4G Modem
+#if [ "${ResetDevice}" != "false" ]; then
+#   echo -e "\n ${GREEN}[+]${RESET} Configuring 3G/4G Modem"
+#    echo -e "\n ${YELLOW}[i]${RESET} Enter Phone Number to Connect to:"
+#    read phonenum
+#    echo -e "\n ${YELLOW}[i]${RESET} Enter the cellular username:"
+#    read celluser
+#    echo -e "\n ${YELLOW}[i]${RESET} Enter the cellular password:"
+#    read cellpass
+# minicom –s
+# Choose: Serial Port Setup
+#    Change: Serial Device (Ex. /dev/ttyUSB3)
+# at+cfun=1
+# at+cgdcont =1,"IP","Carrier_APN"
+# at!scdftprof=1
+# at!scprof=1," ",1,0,0,0
+# OPTIONAL
+# AT$QCPDPP=1,1,"password","username"
+# at!gstatus?
+
+##### OPTION 2 wvdial
+#    /etc/wvdial.conf
+
+
+# /etc/network/interfaces
+# auto wwan0
+# iface wwan0 inet dhcp  
+
+
+#fi
+
+
+
 ##### Reset Raspberry Pi
 if [ "${ResetDevice}" != "false" ]; then
-   echo -e "\n ${GREEN}[+]${RESET} Reseting Raspberry Pi Configs"
+   echo -e "\n ${GREEN}[+]${RESET} Resetting Raspberry Pi Configs"
+#   echo -e "\n ${YELLOW}[i]${RESET} Resetting Managed Interfaces"
+#   sed -i 's/managed=true/managed=false/g' /etc/NetworkManager/NetworkManager.conf
    echo -e "\n ${YELLOW}[i]${RESET} Flushing Firewall"
     iptables -F
     iptables -X
@@ -779,7 +796,7 @@ if [ "${ResetDevice}" != "false" ]; then
    echo -e "\n ${YELLOW}[i]${RESET} Removing CRON Jobs"
    rm /etc/cron.d/revssh
 
-   echo -e "\n ${YELLOW}[i]${RESET} Reseting rc.local"
+   echo -e "\n ${YELLOW}[i]${RESET} Resetting rc.local"
 cat <<EOF > "/etc/rc.local"
 #!/bin/sh -e
 #
