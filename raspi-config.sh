@@ -222,7 +222,8 @@ EOF
 cat <<EOF > "/root/config_ap.sh"
 #Start AP
 sleep 30
-service network-manager stop
+#service network-manager stop
+ifconfig wlan0 up
 ifconfig wlan0 10.0.0.1
 sleep 1m
 dnsmasq -C /etc/dnsmasq.conf
@@ -233,6 +234,8 @@ EOF
 chmod 755 /root/config_ap.sh
 
 sed -i 's/exit 0//g' /etc/rc.local
+sed -i 's/ifconfig wwan0 up && dhclient wwan0//g' /etc/rc.local
+
 cat <<EOF >> "/etc/rc.local"
 
 sleep 30
@@ -663,6 +666,8 @@ chmod 755 /root/icmpssh.sh
 
 
 sed -i 's/exit 0//g' /etc/rc.local
+sed -i 's/for i in `seq 0 2`; do ifconfig eth$i up && dhclient eth$i; done//g' /etc/rc.local
+sed -i 's/ifconfig wwan0 up && dhclient wwan0//g' /etc/rc.local
 cat <<EOF >> "/etc/rc.local"
 
 sleep 30
@@ -731,7 +736,6 @@ sed -i 's/exit 0//g' /etc/rc.local
 cat <<EOF >> "/etc/rc.local"
 
 ifconfig eth0 up && dhclient eth0
-ifconfig wwan0 up && dhclient wwan0
 cd /root/ && python /root/autosniff.py &
 /etc/init.d/ssh start &
 
@@ -791,6 +795,8 @@ if [ "${ResetDevice}" != "false" ]; then
     iptables -P INPUT ACCEPT
     iptables -P FORWARD ACCEPT
     iptables -P OUTPUT ACCEPT
+    ebtables -F
+    ebtables -X
 
    echo -e "\n ${YELLOW}[i]${RESET} Removing CRON Jobs"
    rm /etc/cron.d/revssh
