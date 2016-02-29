@@ -100,7 +100,7 @@ done
 #-Start----------------------------------------------------------------#
 
 echo -e "\n ${BLUE}[USAGE:]${RESET} raspi-config.sh ${BLUE}--base --tft --wifi --ssh --wifi --stealth --reset ${RESET}"
-
+echo -e
 ##### Install TFT patched kernel
 if [ "${TFTinstall}" != "false" ]; then
 	if [ ! -f /root/tft ]; then
@@ -236,7 +236,7 @@ sed -i 's/exit 0//g' /etc/rc.local
 cat <<EOF >> "/etc/rc.local"
 
 sleep 30
-for i in `seq 0 2`; do ifconfig eth$i up && dhclient eth$i; done
+for i in \`seq 0 2\`; do ifconfig eth\$i up && dhclient eth\$i; done
 ifconfig wwan0 up && dhclient wwan0
 
 sh /root/config_ap.sh &
@@ -666,7 +666,7 @@ sed -i 's/exit 0//g' /etc/rc.local
 cat <<EOF >> "/etc/rc.local"
 
 sleep 30
-for i in `seq 0 2`; do ifconfig eth$i up && dhclient eth$i; done
+for i in \`seq 0 2\`; do ifconfig eth\$i up && dhclient eth\$i; done
 ifconfig wwan0 up && dhclient wwan0
 
 # 
@@ -730,7 +730,6 @@ sed -i 's/exit 0//g' /etc/rc.local
 
 cat <<EOF >> "/etc/rc.local"
 
-sh /root/config_ap.sh &
 ifconfig eth0 up && dhclient eth0
 ifconfig wwan0 up && dhclient wwan0
 cd /root/ && python /root/autosniff.py &
