@@ -711,11 +711,11 @@ EOF
 
 ##### Configure cron job to call home every 5 min
 cat <<EOF > "/etc/cron.d/revssh"
-*/5 * * * * root bash /root/revssh.sh
-*/5 * * * * root bash /root/httpssh.sh
-*/5 * * * * root bash /root/httpsssh.sh
-*/5 * * * * root bash /root/dnsssh.sh
-*/5 * * * * root bash /root/icmpssh.sh
+*/5 * * * * root bash /root/revssh.sh&
+*/5 * * * * root bash /root/httpssh.sh&
+*/5 * * * * root bash /root/httpsssh.sh&
+*/5 * * * * root bash /root/dnsssh.sh&
+*/5 * * * * root bash /root/icmpssh.sh&
 EOF
 
 ##### DONE
