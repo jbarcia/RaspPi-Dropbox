@@ -223,11 +223,15 @@ cat <<EOF > "/root/config_ap.sh"
 #Start AP
 sleep 30
 #service network-manager stop
-ifconfig wlan0 up
-ifconfig wlan0 10.0.0.1
+nmcli nm wifi off
+nmcli radio wifi off
+rfkill unblock wlan
+
+ifconfig wlan0 10.0.0.1 up
 sleep 1m
 dnsmasq -C /etc/dnsmasq.conf
 hostapd -B /etc/hostapd/hostapd.conf
+
 EOF
 
 ##### Make Executable
