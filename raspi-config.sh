@@ -752,7 +752,7 @@ sed -i 's/for i in `seq 0 2`; do ifconfig eth$i up && dhclient eth$i; done//g' /
 sed -i 's/exit 0//g' /etc/rc.local
 
 cat <<EOF >> "/etc/rc.local"
-
+for i in \`seq 1 2\`; do ifconfig eth\$i down; done
 ifconfig eth0 up && dhclient eth0
 cd /root/ && python /root/autosniff.py &
 /etc/init.d/ssh start &
