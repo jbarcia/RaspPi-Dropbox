@@ -173,8 +173,13 @@ git clone https://github.com/c0d3z3r0/impacket.git
 cd impacket/ && python setup.py install
 cd ~
 
-##### Configuring Managed Network Interfaces
-sed -i 's/managed=false/managed=true/g' /etc/NetworkManager/NetworkManager.conf
+##### Removing Network Manager
+#sed -i 's/managed=false/managed=true/g' /etc/NetworkManager/NetworkManager.conf
+systemctl stop NetworkManager.service
+systemctl disable NetworkManager.service
+/etc/init.d/network-manager stop
+update-rc.d network-manager remove
+
 for i in `seq 0 2`; do ifconfig eth$i up && dhclient eth$i; done
 
 fi
@@ -192,6 +197,15 @@ if [ "${ConfigWifi}" != "false" ]; then
 ##### Backup default config files
 cp /etc/hostapd/hostapd.conf /etc/hostapd/hostapd.conf.orig
 cp /etc/dnsmasq.conf /etc/dnsmasq.conf.orig
+
+#Block Wifi Device From Network Manager
+#Grab MAC
+MACADDR=$( ifconfig wlan0 |grep HWaddr |cut -d' ' -f10 )
+cat <<EOF >> "/etc/NetworkManager/NetworkManager.conf"
+
+[keyfile]
+unmanaged-devices=mac:$MACADDR
+EOF
 
 #Config AP
 cat <<EOF > "/etc/hostapd/hostapd.conf"
@@ -787,7 +801,14 @@ fi
 ##### Reset Raspberry Pi
 if [ "${ResetDevice}" != "false" ]; then
    echo -e "\n ${GREEN}[+]${RESET} Resetting Raspberry Pi Configs"
-#   echo -e "\n ${YELLOW}[i]${RESET} Resetting Managed Interfaces"
+   echo -e "\n ${YELLOW}[i]${RESET} Resetting Managed Interfaces"
+cat <<EOF >> "/etc/NetworkManager/NetworkManager.conf"
+[main]
+plugins=ifupdown,keyfile
+
+[ifupdown]
+managed=false
+EOF
 #   sed -i 's/managed=true/managed=false/g' /etc/NetworkManager/NetworkManager.conf
    echo -e "\n ${YELLOW}[i]${RESET} Flushing Firewall"
     iptables -F
@@ -803,7 +824,7 @@ if [ "${ResetDevice}" != "false" ]; then
     ebtables -X
 
    echo -e "\n ${YELLOW}[i]${RESET} Removing CRON Jobs"
-   rm /etc/cron.d/revssh
+   rm -f /etc/cron.d/revssh
 
    echo -e "\n ${YELLOW}[i]${RESET} Resetting rc.local"
 cat <<EOF > "/etc/rc.local"
