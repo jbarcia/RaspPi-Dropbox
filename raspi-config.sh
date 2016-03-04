@@ -252,6 +252,7 @@ EOF
 chmod 755 /root/config_ap.sh
 
 sed -i 's/exit 0//g' /etc/rc.local
+sed -i 's/for i in `seq 0 2`; do ifconfig eth$i up && dhclient eth$i; done//g' /etc/rc.local
 sed -i 's/ifconfig wwan0 up && dhclient wwan0//g' /etc/rc.local
 
 cat <<EOF >> "/etc/rc.local"
@@ -840,6 +841,8 @@ cat <<EOF > "/etc/rc.local"
 # bits.
 #
 # By default this script does nothing.
+
+for i in \`seq 0 2\`; do ifconfig eth\$i up && dhclient eth\$i; done
 
 exit 0
 
