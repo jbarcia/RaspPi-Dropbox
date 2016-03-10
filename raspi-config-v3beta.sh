@@ -300,7 +300,7 @@ echo -e "\n ${GREEN}[+]${RESET} ICMP-SSH Pivot port:${ICMPSSHPivotPort}"
 ##### Generate SSH Keys and add to authorized keys on main server
 echo -e "\n ${YELLOW}[i]${RESET} Generate new SSH key? (Y/N):"
 read KEYGEN
-if [[ $KEYGEN == Y* ]] || [[ $KEYGEN == y* ]]; then ssh-keygen -t rsa fi
+if [[ $KEYGEN == Y* ]] || [[ $KEYGEN == y* ]]; then ssh-keygen -t rsa; fi
 cat ~/.ssh/id_rsa.pub | ssh $SERVUSR@$SERVER "cat - >> ~/.ssh/authorized_keys"
 
 cat <<EOF > "/root/server_autoconfig.sh"
@@ -726,31 +726,31 @@ echo 300 WAN >> /etc/iproute2/rt_tables
 sed -i 's/exit 0//g' /etc/rc.local
 
 cat <<EOF >> "/etc/rc.local"
-IPADDRETH1=$( ifconfig eth1|grep 'inet addr' |cut -d' ' -f12 |cut -d: -f2 )
-MASKETH1=$( ifconfig eth1|grep 'Mask' |cut -d' ' -f16 |cut -d: -f2 )
-if [ $MASKETH1 == 255.255.255.0 ]; then BROADETH1=$( echo $IPADDRETH1 |cut -d. -f1,2,3 ).0/24 && GATEETH1=$( echo $IPADDRETH1 |cut -d. -f1,2,3 ).1; fi
-if [ $MASKETH1 == 255.255.0.0 ]; then BROADETH1=$( echo $IPADDRETH1 |cut -d. -f1,2,3 ).0/16  && GATEETH1=$( echo $IPADDRETH1 |cut -d. -f1,2 ).0.1; fi
-if [ $MASKETH1 == 255.0.0.0 ]; then BROADETH1=$( echo $IPADDRETH1 |cut -d. -f1,2,3 ).0/8  && GATEETH1=$( echo $IPADDRETH1 |cut -d. -f1 ).0.0.1; fi
+IPADDRETH1=\$( ifconfig eth1|grep 'inet addr' |cut -d' ' -f12 |cut -d: -f2 )
+MASKETH1=\$( ifconfig eth1|grep 'Mask' |cut -d' ' -f16 |cut -d: -f2 )
+if [ \$MASKETH1 == 255.255.255.0 ]; then BROADETH1=\$( echo \$IPADDRETH1 |cut -d. -f1,2,3 ).0/24 && GATEETH1=\$( echo \$IPADDRETH1 |cut -d. -f1,2,3 ).1; fi
+if [ \$MASKETH1 == 255.255.0.0 ]; then BROADETH1=\$( echo \$IPADDRETH1 |cut -d. -f1,2,3 ).0/16  && GATEETH1=\$( echo \$IPADDRETH1 |cut -d. -f1,2 ).0.1; fi
+if [ \$MASKETH1 == 255.0.0.0 ]; then BROADETH1=\$( echo \$IPADDRETH1 |cut -d. -f1,2,3 ).0/8  && GATEETH1=\$( echo \$IPADDRETH1 |cut -d. -f1 ).0.0.1; fi
 
-IPADDRETH2=$( ifconfig eth2|grep 'inet addr' |cut -d' ' -f12 |cut -d: -f2 )
-MASKETH2=$( ifconfig eth2|grep 'Mask' |cut -d' ' -f16 |cut -d: -f2 )
-if [ $MASKETH2 == 255.255.255.0 ]; then BROADETH2=$( echo $IPADDRETH2 |cut -d. -f1,2,3 ).0/24 && GATEETH2=$( echo $IPADDRETH2 |cut -d. -f1,2,3 ).1; fi
-if [ $MASKETH2 == 255.255.0.0 ]; then BROADETH2=$( echo $IPADDRETH2 |cut -d. -f1,2,3 ).0/16 && GATEETH2=$( echo $IPADDRETH2 |cut -d. -f1,2 ).0.1; fi
-if [ $MASKETH2 == 255.0.0.0 ]; then BROADETH2=$( echo $IPADDRETH2 |cut -d. -f1,2,3 ).0/8 && GATEETH2=$( echo $IPADDRETH2 |cut -d. -f1 ).0.0.1; fi
+IPADDRETH2=\$( ifconfig eth2|grep 'inet addr' |cut -d' ' -f12 |cut -d: -f2 )
+MASKETH2=\$( ifconfig eth2|grep 'Mask' |cut -d' ' -f16 |cut -d: -f2 )
+if [ \$MASKETH2 == 255.255.255.0 ]; then BROADETH2=\$( echo \$IPADDRETH2 |cut -d. -f1,2,3 ).0/24 && GATEETH2=\$( echo \$IPADDRETH2 |cut -d. -f1,2,3 ).1; fi
+if [ \$MASKETH2 == 255.255.0.0 ]; then BROADETH2=\$( echo \$IPADDRETH2 |cut -d. -f1,2,3 ).0/16 && GATEETH2=\$( echo \$IPADDRETH2 |cut -d. -f1,2 ).0.1; fi
+if [ \$MASKETH2 == 255.0.0.0 ]; then BROADETH2=\$( echo \$IPADDRETH2 |cut -d. -f1,2,3 ).0/8 && GATEETH2=\$( echo \$IPADDRETH2 |cut -d. -f1 ).0.0.1; fi
 
-IPADDRWAN=$( ifconfig wwan0|grep 'inet addr' |cut -d' ' -f12 |cut -d: -f2 )
-MASKWAN=$( ifconfig wwan0|grep 'Mask' |cut -d' ' -f16 |cut -d: -f2 )
-if [ $MASKWAN == 255.255.255.0 ]; then BROADWAN=$( echo $IPADDRWAN |cut -d. -f1,2,3 ).0/24 && GATEWAN=$( echo $IPADDRWAN |cut -d. -f1,2,3 ).1; fi
-if [ $MASKWAN == 255.255.0.0 ]; then BROADWAN=$( echo $IPADDRWAN |cut -d. -f1,2,3 ).0/16 && GATEWAN=$( echo $IPADDRWAN |cut -d. -f1,2 ).0.1; fi
-if [ $MASKWAN == 255.0.0.0 ]; then BROADWAN=$( echo $IPADDRWAN |cut -d. -f1,2,3 ).0/8 && GATEWAN=$( echo $IPADDRWAN |cut -d. -f1 ).0.0.1; fi
+IPADDRWAN=\$( ifconfig wwan0|grep 'inet addr' |cut -d' ' -f12 |cut -d: -f2 )
+MASKWAN=\$( ifconfig wwan0|grep 'Mask' |cut -d' ' -f16 |cut -d: -f2 )
+if [ \$MASKWAN == 255.255.255.0 ]; then BROADWAN=\$( echo \$IPADDRWAN |cut -d. -f1,2,3 ).0/24 && GATEWAN=\$( echo $IPADDRWAN |cut -d. -f1,2,3 ).1; fi
+if [ \$MASKWAN == 255.255.0.0 ]; then BROADWAN=\$( echo \$IPADDRWAN |cut -d. -f1,2,3 ).0/16 && GATEWAN=\$( echo $IPADDRWAN |cut -d. -f1,2 ).0.1; fi
+if [ \$MASKWAN == 255.0.0.0 ]; then BROADWAN=\$( echo \$IPADDRWAN |cut -d. -f1,2,3 ).0/8 && GATEWAN=\$( echo $IPADDRWAN |cut -d. -f1 ).0.0.1; fi
 
-ip route add $MASKETH1 dev eth1 src $IPADDRETH1 table LAN1
-ip route add $MASKETH2 dev eth2 src $IPADDRETH2 table LAN2
-ip route add $MASKWAN dev wwan0 src $IPADDRWAN table WAN
+ip route add \$MASKETH1 dev eth1 src \$IPADDRETH1 table LAN1
+ip route add \$MASKETH2 dev eth2 src \$IPADDRETH2 table LAN2
+ip route add \$MASKWAN dev wwan0 src \$IPADDRWAN table WAN
 
-ip route add default via $GATEETH1 dev eth1 table LAN1
-ip route add default via $GATEETH2 dev eth2 table LAN2
-ip route add default via $GATEWAN dev wwan0 table WAN
+ip route add default via \$GATEETH1 dev eth1 table LAN1
+ip route add default via \$GATEETH2 dev eth2 table LAN2
+ip route add default via \$GATEWAN dev wwan0 table WAN
 
 # ip rule add from 10.200.6.55/32 table eth1
 # ip rule add to 10.200.6.55/32 table eth1
