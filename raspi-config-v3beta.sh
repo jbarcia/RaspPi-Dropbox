@@ -726,6 +726,7 @@ echo 300 WAN >> /etc/iproute2/rt_tables
 sed -i 's/exit 0//g' /etc/rc.local
 
 cat <<EOF >> "/etc/rc.local"
+sleep 30
 IPADDRETH1=\$( ifconfig eth1|grep 'inet addr' |cut -d' ' -f12 |cut -d: -f2 )
 MASKETH1=\$( ifconfig eth1|grep 'Mask' |cut -d' ' -f16 |cut -d: -f2 )
 if [ \$MASKETH1 == 255.255.255.0 ]; then BROADETH1=\$( echo \$IPADDRETH1 |cut -d. -f1,2,3 ).0/24 && GATEETH1=\$( echo \$IPADDRETH1 |cut -d. -f1,2,3 ).1; fi
@@ -740,9 +741,9 @@ if [ \$MASKETH2 == 255.0.0.0 ]; then BROADETH2=\$( echo \$IPADDRETH2 |cut -d. -f
 
 IPADDRWAN=\$( ifconfig wwan0|grep 'inet addr' |cut -d' ' -f12 |cut -d: -f2 )
 MASKWAN=\$( ifconfig wwan0|grep 'Mask' |cut -d' ' -f16 |cut -d: -f2 )
-if [ \$MASKWAN == 255.255.255.0 ]; then BROADWAN=\$( echo \$IPADDRWAN |cut -d. -f1,2,3 ).0/24 && GATEWAN=\$( echo $IPADDRWAN |cut -d. -f1,2,3 ).1; fi
-if [ \$MASKWAN == 255.255.0.0 ]; then BROADWAN=\$( echo \$IPADDRWAN |cut -d. -f1,2,3 ).0/16 && GATEWAN=\$( echo $IPADDRWAN |cut -d. -f1,2 ).0.1; fi
-if [ \$MASKWAN == 255.0.0.0 ]; then BROADWAN=\$( echo \$IPADDRWAN |cut -d. -f1,2,3 ).0/8 && GATEWAN=\$( echo $IPADDRWAN |cut -d. -f1 ).0.0.1; fi
+if [ \$MASKWAN == 255.255.255.0 ]; then BROADWAN=\$( echo \$IPADDRWAN |cut -d. -f1,2,3 ).0/24 && GATEWAN=\$( echo \$IPADDRWAN |cut -d. -f1,2,3 ).1; fi
+if [ \$MASKWAN == 255.255.0.0 ]; then BROADWAN=\$( echo \$IPADDRWAN |cut -d. -f1,2,3 ).0/16 && GATEWAN=\$( echo \$IPADDRWAN |cut -d. -f1,2 ).0.1; fi
+if [ \$MASKWAN == 255.0.0.0 ]; then BROADWAN=\$( echo \$IPADDRWAN |cut -d. -f1,2,3 ).0/8 && GATEWAN=\$( echo \$IPADDRWAN |cut -d. -f1 ).0.0.1; fi
 
 ip route add \$MASKETH1 dev eth1 src \$IPADDRETH1 table LAN1
 ip route add \$MASKETH2 dev eth2 src \$IPADDRETH2 table LAN2
