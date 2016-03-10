@@ -723,10 +723,7 @@ echo 200 LAN1 >> /etc/iproute2/rt_tables
 echo 201 LAN2 >> /etc/iproute2/rt_tables
 echo 300 WAN >> /etc/iproute2/rt_tables
 
-sed -i 's/exit 0//g' /etc/rc.local
-
-cat <<EOF >> "/etc/rc.local"
-sleep 30
+cat <<EOF > "/root/4G_modem.sh"
 IPADDRETH1=\$( ifconfig eth1|grep 'inet addr' |cut -d' ' -f12 |cut -d: -f2 )
 MASKETH1=\$( ifconfig eth1|grep 'Mask' |cut -d' ' -f16 |cut -d: -f2 )
 if [ \$MASKETH1 == 255.255.255.0 ]; then BROADETH1=\$( echo \$IPADDRETH1 |cut -d. -f1,2,3 ).0/24 && GATEETH1=\$( echo \$IPADDRETH1 |cut -d. -f1,2,3 ).1; fi
@@ -763,7 +760,13 @@ route add -host $SERVER dev wwan0
 # sh /root/httpsssh.sh &
 # sh /root/dnsssh.sh &
 # sh /root/icmpssh.sh &
+EOF
 
+chmod +x /root/4G_modem.sh
+sed -i 's/exit 0//g' /etc/rc.local
+
+cat <<EOF >> "/etc/rc.local"
+bash /root/4G_modem.sh
 exit 0
 EOF
 fi
