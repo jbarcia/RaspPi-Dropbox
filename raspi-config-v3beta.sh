@@ -292,15 +292,17 @@ echo -e "\n ${YELLOW}[i]${RESET} Enter server name/IP to phone home to:"
 read SERVER
 echo -e "\n ${YELLOW}[i]${RESET} Enter the username for the home box:"
 read SERVUSR
-echo -e "\n ${YELLOW}[i]${RESET} Reverse-SSH Pivot port:${ReverseSSHPivotPort}"
-echo -e "\n ${YELLOW}[i]${RESET} HTTP-SSH Pivot port:${HTTPSSHPivotPort}"
-echo -e "\n ${YELLOW}[i]${RESET} HTTPS-SSH Pivot port:${HTTPSSSHPivotPort}"
-echo -e "\n ${YELLOW}[i]${RESET} DNS-SSH Pivot port:${DNSSSHPivotPort}"
-echo -e "\n ${YELLOW}[i]${RESET} ICMP-SSH Pivot port:${ICMPSSHPivotPort}"
+echo -e "\n ${GREEN}[+]${RESET} Reverse-SSH Pivot port:${ReverseSSHPivotPort}"
+echo -e "\n ${GREEN}[+]${RESET} HTTP-SSH Pivot port:${HTTPSSHPivotPort}"
+echo -e "\n ${GREEN}[+]${RESET} HTTPS-SSH Pivot port:${HTTPSSSHPivotPort}"
+echo -e "\n ${GREEN}[+]${RESET} DNS-SSH Pivot port:${DNSSSHPivotPort}"
+echo -e "\n ${GREEN}[+]${RESET} ICMP-SSH Pivot port:${ICMPSSHPivotPort}"
 #read PIVPORT
 
 ##### Generate SSH Keys and add to authorized keys on main server
-ssh-keygen -t rsa
+echo -e "\n ${YELLOW}[i]${RESET} Generate new SSH key? (Y/N):"
+read KEYGEN
+if [[ $KEYGEN == Y* ]] || [[ $KEYGEN == y* ]]; then ssh-keygen -t rsa fi
 cat ~/.ssh/id_rsa.pub | ssh $SERVUSR@$SERVER "cat - >> ~/.ssh/authorized_keys"
 
 cat <<EOF > "/root/server_autoconfig.sh"
@@ -913,6 +915,7 @@ for i in \`seq 0 2\`; do ifconfig eth\$i up && dhclient eth\$i; done
 exit 0
 EOF
 
+   echo -e "\n ${YELLOW}[i]${RESET} Resetting Routing Tables"
 cat <<EOF > "/etc/iproute2/rt_tables"
 #
 # reserved values
