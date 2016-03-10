@@ -269,14 +269,12 @@ sed -i 's/sh \/root\/config_ap.sh &//g' /etc/rc.local
 sed -i 's/ifconfig wwan0 up && dhclient wwan0//g' /etc/rc.local
 
 cat <<EOF >> "/etc/rc.local"
-
 sleep 30
 for i in \`seq 0 2\`; do ifconfig eth\$i up && dhclient eth\$i; done
 ifconfig wwan0 up && dhclient wwan0
 
 sh /root/config_ap.sh &
 exit 0
-
 EOF
 
 fi
@@ -711,17 +709,23 @@ sed -i 's/for i in `seq 0 2`; do ifconfig eth$i up && dhclient eth$i; done//g' /
 sed -i 's/ifconfig wwan0 up && dhclient wwan0//g' /etc/rc.local
 
 cat <<EOF >> "/etc/rc.local"
-
 sleep 30
 for i in \`seq 0 2\`; do ifconfig eth\$i up && dhclient eth\$i; done
 ifconfig wwan0 up && dhclient wwan0
 
 exit 0
-
 EOF
 
 ##### Route over WWAN 3/4G?
 if [[ $cellhome == Y* ]] || [[ $cellhome == y* ]]; then
+
+echo 200 LAN1 >> /etc/iproute2/rt_tables
+echo 201 LAN2 >> /etc/iproute2/rt_tables
+echo 300 WAN >> /etc/iproute2/rt_tables
+
+sed -i 's/exit 0//g' /etc/rc.local
+
+cat <<EOF >> "/etc/rc.local"
 IPADDRETH1=$( ifconfig eth1|grep 'inet addr' |cut -d' ' -f12 |cut -d: -f2 )
 MASKETH1=$( ifconfig eth1|grep 'Mask' |cut -d' ' -f16 |cut -d: -f2 )
 if [ $MASKETH1 == 255.255.255.0 ]; then BROADETH1=$( echo $IPADDRETH1 |cut -d. -f1,2,3 ).0/24 && GATEETH1=$( echo $IPADDRETH1 |cut -d. -f1,2,3 ).1; fi
@@ -739,15 +743,6 @@ MASKWAN=$( ifconfig wwan0|grep 'Mask' |cut -d' ' -f16 |cut -d: -f2 )
 if [ $MASKWAN == 255.255.255.0 ]; then BROADWAN=$( echo $IPADDRWAN |cut -d. -f1,2,3 ).0/24 && GATEWAN=$( echo $IPADDRWAN |cut -d. -f1,2,3 ).1; fi
 if [ $MASKWAN == 255.255.0.0 ]; then BROADWAN=$( echo $IPADDRWAN |cut -d. -f1,2,3 ).0/16 && GATEWAN=$( echo $IPADDRWAN |cut -d. -f1,2 ).0.1; fi
 if [ $MASKWAN == 255.0.0.0 ]; then BROADWAN=$( echo $IPADDRWAN |cut -d. -f1,2,3 ).0/8 && GATEWAN=$( echo $IPADDRWAN |cut -d. -f1 ).0.0.1; fi
-
-
-echo 200 LAN1 >> /etc/iproute2/rt_tables
-echo 201 LAN2 >> /etc/iproute2/rt_tables
-echo 300 WAN >> /etc/iproute2/rt_tables
-
-sed -i 's/exit 0//g' /etc/rc.local
-
-cat <<EOF >> "/etc/rc.local"
 
 ip route add $MASKETH1 dev eth1 src $IPADDRETH1 table LAN1
 ip route add $MASKETH2 dev eth2 src $IPADDRETH2 table LAN2
@@ -769,7 +764,6 @@ route add -host $SERVER dev wwan0
 # sh /root/icmpssh.sh &
 
 exit 0
-
 EOF
 fi
 
@@ -828,7 +822,6 @@ cd /root/ && python /root/autosniff.py &
 /etc/init.d/ssh start &
 
 exit 0
-
 EOF
 
 fi
