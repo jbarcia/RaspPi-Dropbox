@@ -783,12 +783,12 @@ cat <<EOF > "/etc/cron.d/revssh"
 EOF
 
 ##### DONE
-echo -e "From The Main Server:   ssh -D 1080 -p $PIVPORT pi@localhost"
-echo -e "From The Main Server:   ssh -D 1080 -p $ReverseSSHPivotPort pi@localhost"
-echo -e "From The Main Server:   ssh -D 1080 -p $HTTPSSHPivotPort pi@localhost"
-echo -e "From The Main Server:   ssh -D 1080 -p $HTTPSSSHPivotPort pi@localhost"
-echo -e "From The Main Server:   ssh -D 1080 -p $DNSSSHPivotPort pi@localhost"
-echo -e "From The Main Server:   ssh -D 1080 -p $ICMPSSHPivotPort pi@localhost"
+echo -e "\n ${GREEN}[+] From The Main Server:${RESET}   ssh -D 1080 -p $PIVPORT pi@localhost"
+echo -e "\n ${GREEN}[+] From The Main Server:${RESET}   ssh -D 1080 -p $ReverseSSHPivotPort pi@localhost"
+echo -e "\n ${GREEN}[+] From The Main Server:${RESET}   ssh -D 1080 -p $HTTPSSHPivotPort pi@localhost"
+echo -e "\n ${GREEN}[+] From The Main Server:${RESET}   ssh -D 1080 -p $HTTPSSSHPivotPort pi@localhost"
+echo -e "\n ${GREEN}[+] From The Main Server:${RESET}   ssh -D 1080 -p $DNSSSHPivotPort pi@localhost"
+echo -e "\n ${GREEN}[+] From The Main Server:${RESET}   ssh -D 1080 -p $ICMPSSHPivotPort pi@localhost"
 
 fi
 
