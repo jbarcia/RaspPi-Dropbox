@@ -404,7 +404,11 @@ else
 fi
 # Start Reverse-SSH-over-ICMP listener
         echo "[+] Starting Reverse-SSH-over-ICMP (ptunnel) listener (Logging to /tmp/ptunnel.log)..."
-        /usr/sbin/ptunnel -daemon /tmp/ptunnel -f /tmp/ptunnel.log & echo "" echo "[+] Setup Complete." echo "[+] Press ENTER to listen for incoming connections..." read INPUT watch -d "netstat -lntup4 | grep 'pwn' | grep 333"
+        /usr/sbin/ptunnel -daemon /tmp/ptunnel -f /tmp/ptunnel.log & echo "" 
+        echo "[+] Setup Complete." 
+        echo "[+] Press ENTER to listen for incoming connections..." 
+        read INPUT 
+        watch -d "netstat -lntup4 | grep 'pwn' | grep 333"
 
 EOF
 
@@ -699,21 +703,62 @@ chmod 755 /root/dnsssh.sh
 chmod 755 /root/icmpssh.sh
 
 
-##### Route over WWAN 3/4G?
-if [[ $cellhome == Y* ]] || [[ $cellhome == y* ]]; then
-    route add -host $SERVER dev wwan0
-fi
-
 sed -i 's/exit 0//g' /etc/rc.local
 sed -i 's/sleep 30//g' /etc/rc.local
 sed -i 's/for i in `seq 0 2`; do ifconfig eth$i up && dhclient eth$i; done//g' /etc/rc.local
 sed -i 's/ifconfig wwan0 up && dhclient wwan0//g' /etc/rc.local
+
 cat <<EOF >> "/etc/rc.local"
 
 sleep 30
 for i in \`seq 0 2\`; do ifconfig eth\$i up && dhclient eth\$i; done
 ifconfig wwan0 up && dhclient wwan0
 
+exit 0
+
+EOF
+
+##### Route over WWAN 3/4G?
+if [[ $cellhome == Y* ]] || [[ $cellhome == y* ]]; then
+IPADDRETH1=$( ifconfig eth1|grep 'inet addr' |cut -d' ' -f12 |cut -d: -f2 )
+MASKETH1=$( ifconfig eth1|grep 'Mask' |cut -d' ' -f16 |cut -d: -f2 )
+if [ $MASKETH1 == 255.255.255.0 ]; then BROADETH1=$( echo $IPADDRETH1 |cut -d. -f1,2,3 ).0/24 && GATEETH1=$( echo $IPADDRETH1 |cut -d. -f1,2,3 ).1; fi
+if [ $MASKETH1 == 255.255.0.0 ]; then BROADETH1=$( echo $IPADDRETH1 |cut -d. -f1,2,3 ).0/16  && GATEETH1=$( echo $IPADDRETH1 |cut -d. -f1,2 ).0.1; fi
+if [ $MASKETH1 == 255.0.0.0 ]; then BROADETH1=$( echo $IPADDRETH1 |cut -d. -f1,2,3 ).0/8  && GATEETH1=$( echo $IPADDRETH1 |cut -d. -f1 ).0.0.1; fi
+
+IPADDRETH2=$( ifconfig eth2|grep 'inet addr' |cut -d' ' -f12 |cut -d: -f2 )
+MASKETH2=$( ifconfig eth2|grep 'Mask' |cut -d' ' -f16 |cut -d: -f2 )
+if [ $MASKETH2 == 255.255.255.0 ]; then BROADETH2=$( echo $IPADDRETH2 |cut -d. -f1,2,3 ).0/24 && GATEETH2=$( echo $IPADDRETH2 |cut -d. -f1,2,3 ).1; fi
+if [ $MASKETH2 == 255.255.0.0 ]; then BROADETH2=$( echo $IPADDRETH2 |cut -d. -f1,2,3 ).0/16 && GATEETH2=$( echo $IPADDRETH2 |cut -d. -f1,2 ).0.1; fi
+if [ $MASKETH2 == 255.0.0.0 ]; then BROADETH2=$( echo $IPADDRETH2 |cut -d. -f1,2,3 ).0/8 && GATEETH2=$( echo $IPADDRETH2 |cut -d. -f1 ).0.0.1; fi
+
+IPADDRWAN=$( ifconfig wwan0|grep 'inet addr' |cut -d' ' -f12 |cut -d: -f2 )
+MASKWAN=$( ifconfig wwan0|grep 'Mask' |cut -d' ' -f16 |cut -d: -f2 )
+if [ $MASKWAN == 255.255.255.0 ]; then BROADWAN=$( echo $IPADDRWAN |cut -d. -f1,2,3 ).0/24 && GATEWAN=$( echo $IPADDRWAN |cut -d. -f1,2,3 ).1; fi
+if [ $MASKWAN == 255.255.0.0 ]; then BROADWAN=$( echo $IPADDRWAN |cut -d. -f1,2,3 ).0/16 && GATEWAN=$( echo $IPADDRWAN |cut -d. -f1,2 ).0.1; fi
+if [ $MASKWAN == 255.0.0.0 ]; then BROADWAN=$( echo $IPADDRWAN |cut -d. -f1,2,3 ).0/8 && GATEWAN=$( echo $IPADDRWAN |cut -d. -f1 ).0.0.1; fi
+
+
+echo 200 LAN1 >> /etc/iproute2/rt_tables
+echo 201 LAN2 >> /etc/iproute2/rt_tables
+echo 300 WAN >> /etc/iproute2/rt_tables
+
+sed -i 's/exit 0//g' /etc/rc.local
+
+cat <<EOF >> "/etc/rc.local"
+
+ip route add $MASKETH1 dev eth1 src $IPADDRETH1 table LAN1
+ip route add $MASKETH2 dev eth2 src $IPADDRETH2 table LAN2
+ip route add $MASKWAN dev wwan0 src $IPADDRWAN table WAN
+
+ip route add default via $GATEETH1 dev eth1 table LAN1
+ip route add default via $GATEETH2 dev eth2 table LAN2
+ip route add default via $GATEWAN dev wwan0 table WAN
+
+# ip rule add from 10.200.6.55/32 table eth1
+# ip rule add to 10.200.6.55/32 table eth1
+
+route add -host $SERVER dev wwan0
 # 
 # sh /root/revssh.sh &
 # sh /root/httpssh.sh &
@@ -724,6 +769,7 @@ ifconfig wwan0 up && dhclient wwan0
 exit 0
 
 EOF
+fi
 
 # ln -s /root/revssh.sh /etc/rc2.d/S99revssh.sh
 # ln -s /root/httpssh.sh /etc/rc2.d/S99httpssh.sh
@@ -864,9 +910,21 @@ cat <<EOF > "/etc/rc.local"
 # By default this script does nothing.
 
 for i in \`seq 0 2\`; do ifconfig eth\$i up && dhclient eth\$i; done
-
 exit 0
+EOF
 
+cat <<EOF > "/etc/iproute2/rt_tables"
+#
+# reserved values
+#
+255     local
+254     main
+253     default
+0       unspec
+#
+# local
+#
+#1      inr.ruhep
 EOF
 
 fi
