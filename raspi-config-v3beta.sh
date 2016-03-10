@@ -286,6 +286,8 @@ fi
 if [ "${ConfigSSH}" != "false" ]; then
 echo -e "\n ${GREEN}[+]${RESET} Configuring SSH auto run"
 
+echo -e "\n ${YELLOW}[i]${RESET} Call Home Over 3G/4G? (Y/N)"
+read cellhome
 echo -e "\n ${YELLOW}[i]${RESET} Enter server name/IP to phone home to:"
 read SERVER
 echo -e "\n ${YELLOW}[i]${RESET} Enter the username for the home box:"
@@ -696,6 +698,11 @@ chmod 755 /root/httpsssh.sh
 chmod 755 /root/dnsssh.sh
 chmod 755 /root/icmpssh.sh
 
+
+##### Route over WWAN 3/4G?
+if [[ $cellhome == Y* ]] || [[ $cellhome == y* ]]; then
+    route add -host $SERVER dev wwan0
+fi
 
 sed -i 's/exit 0//g' /etc/rc.local
 sed -i 's/sleep 30//g' /etc/rc.local
