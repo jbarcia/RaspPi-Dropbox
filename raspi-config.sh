@@ -1,8 +1,8 @@
 #!/bin/bash
 #-Metadata----------------------------------------------------#
-#  Filename: raspi-config.sh             (Update: 2016-02-26) #
+#  Filename: raspi-config.sh             (Update: 2016-03-31) #
 #-Info--------------------------------------------------------#
-#  Raspberry Pi Kali dropbox automated script v2              #
+#  Raspberry Pi Kali dropbox automated script v2.1            #
 #-Author(s)---------------------------------------------------#
 #  jbarcia                                                    #
 #-Operating System--------------------------------------------#
@@ -20,7 +20,8 @@
 #   --wifi    = Configure wifi AP to start on boot            #
 #   --ssh     = Configure ssh phone home over 				  #
 #					ssh/http/https/DNS                     	  #
-#   --stealth = 802.1x Bypass and Stealth (includes wifi)     #
+#   --stealth = starts with eth1/2 down                       #
+#   --nac = 802.1x Bypass and Stealth (includes wifi)         #
 #   --reset   = Reset device                                  #
 #   e.g. # bash raspi-config.sh --ssh --wifi                  #
 #                             ---                             #
@@ -60,6 +61,7 @@ Expand=false                 # Do not expand image to fill SD card           [ -
 ConfigSSH=false				 # Do not config SSH 							 [ --ssh ]
 ConfigWifi=false			 # Do not config Wifi 							 [ --wifi ]
 Stealth=false                # Do not config stealth mode                    [ --stealth ]
+NAC=false                    # Do not config NAC Bypass mode                 [ --nac ]
 ResetDevice=false            # Do not reset device                           [ --reset ]
 
 ##### (Cosmetic) Colour output
@@ -85,8 +87,10 @@ for x in $( tr '[:upper:]' '[:lower:]' <<< "$@" ); do
   elif [ "${x}" == "--wifi" ]; then
     ConfigWifi=true
   elif [ "${x}" == "--stealth" ]; then
-    ConfigWifi=true
     Stealth=true
+  elif [ "${x}" == "--nac" ]; then
+    ConfigWifi=true
+    NAC=true
   elif [ "${x}" == "--reset" ]; then
     ResetDevice=true
   else
@@ -99,7 +103,7 @@ done
 
 #-Start----------------------------------------------------------------#
 
-echo -e "\n ${BLUE}[USAGE:]${RESET} raspi-config.sh ${BLUE}--base --tft --wifi --ssh --wifi --stealth --reset ${RESET}"
+echo -e "\n ${BLUE}[USAGE:]${RESET} raspi-config.sh ${BLUE}--base --tft --wifi --ssh --wifi --stealth --nac --reset ${RESET}"
 echo -e
 ##### Install TFT patched kernel
 if [ "${TFTinstall}" != "false" ]; then
@@ -744,9 +748,30 @@ echo -e "From The Main Server:   ssh -D 1080 -p $ICMPSSHPivotPort pi@localhost"
 fi
 
 
-##### Stealth Raspberry Pi
+##### Stealth PI mode
 if [ "${Stealth}" != "false" ]; then
-   echo -e "\n ${GREEN}[+]${RESET} Creating stealth mode"
+   echo -e "\n ${GREEN}[+]${RESET} Creating Stealth mode"
+   echo -e "\n ${YELLOW}[+]${RESET} ETH1/2 starts down recommend WIFI or SSH over 3/4G"
+
+sed -i 's/for i in `seq 0 2`; do ifconfig eth$i up && dhclient eth$i; done//g' /etc/rc.local
+sed -i 's/exit 0//g' /etc/rc.local
+
+cat <<EOF >> "/etc/rc.local"
+for i in \`seq 1 2\`; do ifconfig eth\$i down; done
+ifconfig eth0 up && dhclient eth0
+
+
+exit 0
+
+EOF
+
+fi
+
+
+##### NAC Bypass
+if [ "${NAC}" != "false" ]; then
+   echo -e "\n ${GREEN}[+]${RESET} Creating NAC Bypass mode"
+   echo -e "\n ${YELLOW}[+]${RESET} ETH1/2 starts down recommend WIFI or SSH over 3/4G"
 # sudo iptables -F
 # sudo iptables -A INPUT -p icmp --icmp-type echo-request -j DROP
 # sudo iptables -A INPUT -d 10.0.0.0/8 -j ACCEPT
